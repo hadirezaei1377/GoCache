@@ -64,10 +64,18 @@ for this work always we must check that ReadOnly = True or not.
 if it was in true mode means we are in readonly of cache and we cant import data to it.
 */
 func (c *Cache) Set(k, v string) {
+	/*
+			why do we use atomic ? a subset of sync package because we are in a mode
+			that multi Goroutine want to access to memory concurrently , some of them just set data in it and one of them read it.
+		     synchronizing must be abled.
+			 load function make it safe(Safe means that if there are several goroutines reading the same part of the memory at the same time, there will be no interference.)
+
+	*/
 	if atomic.LoadInt32(&c.readOnly) == 1 {
 		return
 	}
 
+	// when we set data in memory , lock it safty(read section and set section)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
