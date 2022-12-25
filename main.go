@@ -76,29 +76,36 @@ func (c *Cache) Set(k, v string) {
 	}
 
 	// when we set data in memory , lock it safty(read section and set section)
+
+	// Item is real place for storage cached data. we use mutex for providing errors(related to concurrency) while multi goroutines are setting data in cache...lock mutex , save data and then unlock mutex
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// expire data after a time
 	c.items[k] = &item{
 		val:    v,
 		expiry: time.Now().Add(time.Duration(c.defaultExpiry)).UnixNano(),
 	}
 }
 
+// delete expired cached data
 func (c *Cache) GetOrDelete(k string) (string, bool) {
+	// it need be locked
 	c.mu.RLock()
+	// value is available?
 	v, ok := c.items[k]
 	if !ok {
 		c.mu.RUnlock()
 		return "", false
 	}
-
+	// compare now time to expiry time , if it is further unlock(we are not in set data in memory!) and delete
 	if time.Now().UnixNano() > v.expiry {
 		c.mu.RUnlock()
 		c.delete(k)
 		return "", false
 	}
 
+	// return value for client if it not expired
 	c.mu.RUnlock()
 	return v.val, true
 }
