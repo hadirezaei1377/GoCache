@@ -165,13 +165,23 @@ func (c *Cache) janitor() {
 
 func main() {
 
+	// benchmarking by using random data
+	// create a cache and store it in variable c
+
 	c := NewCacheWithJanitor(time.Millisecond * 20)
+
+	// time.Millisecond is data expiry
+	// 20 ms
 
 	start := time.Now()
 
 	ch := make(chan bool)
 
 	fmt.Println("Start writing to the cache")
+
+	// writerandom and readrandom work concurrently
+
+	// concurrency here means write 1000000 times data while you read 3000000 times data
 	go writeRand(c, ch)
 	<-time.After(time.Millisecond)
 	fmt.Println("Start reading from the cache")
@@ -180,7 +190,9 @@ func main() {
 	<-ch
 	<-ch
 
+	// print how many data are in cache now
 	fmt.Printf("%d items remained in the cache. \n", len(c.items))
+	// print how much time spend for work this section of code
 	fmt.Printf("Total exec time: %d milisecond. \n", time.Now().Sub(start).Milliseconds())
 }
 
