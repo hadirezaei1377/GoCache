@@ -131,6 +131,8 @@ func (c *Cache) delete(k string) {
 	delete(c.items, k)
 }
 
+// move cache to reeadonly mode
+// from now on , no one cant add data to cache
 func (c *Cache) SaveAndExit(k string) {
 	atomic.AddInt32(&c.readOnly, 1)
 	// Copy cache items on disk
@@ -182,6 +184,7 @@ func main() {
 	fmt.Printf("Total exec time: %d milisecond. \n", time.Now().Sub(start).Milliseconds())
 }
 
+// set 1000000 times data in cache
 func writeRand(c *Cache, ch chan<- bool) {
 
 	wg := new(sync.WaitGroup)
@@ -207,6 +210,7 @@ func writeRand(c *Cache, ch chan<- bool) {
 	ch <- true
 }
 
+// read 3000000 times data from cache
 func readRand(c *Cache, ch chan<- bool) {
 
 	wg := new(sync.WaitGroup)
