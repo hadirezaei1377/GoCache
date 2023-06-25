@@ -9,10 +9,16 @@ import (
 )
 
 // todo :
-// write adding features
 // add new features
 // test
 // review line by line in future
+
+// additional features for improving :
+// Cache size limit: add a maximum size for the cache and remove old items when the limit is reached.
+// This will ensure that the cache does not grow too large and consume excessive memory.
+// Custom expiry time: Allow users to set custom expiry times for individual keys instead of relying only on
+// the defaultExpiry.
+// Compression: Introducing compression techniques can be helpful for reducing the amount of memory consumed by the cache.
 
 type item struct {
 	val    string
@@ -139,7 +145,8 @@ func main() {
 	<-ch
 
 	fmt.Printf("%d items remained in the cache. \n", len(c.items))
-	fmt.Printf("Total exec time: %d milisecond. \n", time.Now().Sub(start).Milliseconds())
+	fmt.Printf("Total exec time: %d milisecond. \n", time.Since(start).Milliseconds())
+
 }
 
 func writeRand(c *Cache, ch chan<- bool) {
