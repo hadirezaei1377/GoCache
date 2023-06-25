@@ -13,9 +13,6 @@ import (
 // test
 // review line by line in future
 
-// This will ensure that the cache does not grow too large and consume excessive memory.
-// Custom expiry time: Allow users to set custom expiry times for individual keys instead of relying only on
-// the defaultExpiry.
 // Compression: Introducing compression techniques can be helpful for reducing the amount of memory consumed by the cache.
 
 type item struct {
@@ -50,7 +47,7 @@ func NewCacheWithJanitor(ed time.Duration, maxItems int) *Cache {
 	return c
 }
 
-func (c *Cache) Set(k, v string, maxItems int) {
+func (c *Cache) Set(k, v string, maxItems int, expiry time.Duration) {
 	if atomic.LoadInt32(&c.readOnly) == 1 {
 		return
 	}
@@ -65,7 +62,7 @@ func (c *Cache) Set(k, v string, maxItems int) {
 
 	c.items[k] = &item{
 		val:    v,
-		expiry: time.Now().Add(time.Duration(c.defaultExpiry)).UnixNano(),
+		expiry: time.Now().Add(expiry).UnixNano(),
 	}
 }
 
@@ -167,8 +164,9 @@ func writeRand(c *Cache, ch chan<- bool, maxItems int) {
 		go func() {
 			mu.RLock()
 			r := fmt.Sprintf("%d", rnd.Intn(20*1000))
+			m := time.Duration(rnd.Int63n(int64(5 * time.Minute)))
 			mu.RUnlock()
-			c.Set(r, r, maxItems)
+			c.Set(r, r, maxItems, m)
 			wg.Done()
 		}()
 	}
