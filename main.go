@@ -8,26 +8,24 @@ import (
 	"time"
 )
 
-// item is value or our imported data in cache
+// todo :
+// write adding features
+// add new features
+// test
+// review line by line in future
+
 type item struct {
-	val string
-	// Each value in the cache has an expiration date
+	val    string
 	expiry int64
 }
 
-// map for caching data
 type Cache struct {
-	// mu = mutex
-	mu *sync.RWMutex
-	// map of strings
-	items map[string]*item
-	// clinet can change expiry time
+	mu            *sync.RWMutex
+	items         map[string]*item
 	defaultExpiry time.Duration
 	readOnly      int32
-	// readonly is a flag
 }
 
-// a function for changing expiry time by client
 func NewCache(ed time.Duration) *Cache {
 	return &Cache{
 		mu:            &sync.RWMutex{},
@@ -48,64 +46,31 @@ func NewCacheWithJanitor(ed time.Duration) *Cache {
 	return c
 }
 
-// set method
-
-/*
-for readonly part :
-when struct of cache receives a signal, it should make a decision saves all caching data in hard disk as a file.
-and in this time that it should save it , cache should be on ReadOnly mode that doesnt allow adding new data in cache.
-*/
-
-// importing data to cache = set
-// for this work always we must check that ReadOnly = True or not.
-/*
-if it was in true mode means we are in readonly of cache and we cant import data to it.
-for this work always we must check that ReadOnly = True or not.
-if it was in true mode means we are in readonly of cache and we cant import data to it.
-*/
 func (c *Cache) Set(k, v string) {
-	/*
-			why do we use atomic ? a subset of sync package because we are in a mode
-			that multi Goroutine want to access to memory concurrently , some of them just set data in it and one of them read it.
-		     synchronizing must be abled.
-			 load function make it safe(Safe means that if there are several goroutines reading the same part of the memory at the same time, there will be no interference.)
-
-	*/
 	if atomic.LoadInt32(&c.readOnly) == 1 {
 		return
 	}
-
-	// when we set data in memory , lock it safty(read section and set section)
-
-	// Item is real place for storage cached data. we use mutex for providing errors(related to concurrency) while multi goroutines are setting data in cache...lock mutex , save data and then unlock mutex
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	// expire data after a time
 	c.items[k] = &item{
 		val:    v,
 		expiry: time.Now().Add(time.Duration(c.defaultExpiry)).UnixNano(),
 	}
 }
 
-// delete expired cached data
 func (c *Cache) GetOrDelete(k string) (string, bool) {
-	// it need be locked
 	c.mu.RLock()
-	// value is available?
 	v, ok := c.items[k]
 	if !ok {
 		c.mu.RUnlock()
 		return "", false
 	}
-	// compare now time to expiry time , if it is further unlock(we are not in set data in memory!) and delete
 	if time.Now().UnixNano() > v.expiry {
 		c.mu.RUnlock()
 		c.delete(k)
 		return "", false
 	}
 
-	// return value for client if it not expired
 	c.mu.RUnlock()
 	return v.val, true
 }
@@ -131,11 +96,8 @@ func (c *Cache) delete(k string) {
 	delete(c.items, k)
 }
 
-// move cache to reeadonly mode
-// from now on , no one cant add data to cache
 func (c *Cache) SaveAndExit(k string) {
 	atomic.AddInt32(&c.readOnly, 1)
-	// Copy cache items on disk
 }
 
 func (c *Cache) cleanup() {
@@ -164,24 +126,10 @@ func (c *Cache) janitor() {
 }
 
 func main() {
-
-	// benchmarking by using random data
-	// create a cache and store it in variable c
-
 	c := NewCacheWithJanitor(time.Millisecond * 20)
-
-	// time.Millisecond is data expiry
-	// 20 ms
-
 	start := time.Now()
-
 	ch := make(chan bool)
-
 	fmt.Println("Start writing to the cache")
-
-	// writerandom and readrandom work concurrently
-
-	// concurrency here means write 1000000 times data while you read 3000000 times data
 	go writeRand(c, ch)
 	<-time.After(time.Millisecond)
 	fmt.Println("Start reading from the cache")
@@ -190,21 +138,15 @@ func main() {
 	<-ch
 	<-ch
 
-	// print how many data are in cache now
 	fmt.Printf("%d items remained in the cache. \n", len(c.items))
-	// print how much time spend for work this section of code
 	fmt.Printf("Total exec time: %d milisecond. \n", time.Now().Sub(start).Milliseconds())
 }
 
-// set 1000000 times data in cache
 func writeRand(c *Cache, ch chan<- bool) {
-
 	wg := new(sync.WaitGroup)
-
 	seed := rand.NewSource(time.Now().UnixNano())
 	rnd := rand.New(seed)
 	mu := &sync.RWMutex{}
-
 	n := 1000 * 1000
 	wg.Add(n)
 	for i := 0; i < n; i++ {
@@ -222,7 +164,6 @@ func writeRand(c *Cache, ch chan<- bool) {
 	ch <- true
 }
 
-// read 3000000 times data from cache
 func readRand(c *Cache, ch chan<- bool) {
 
 	wg := new(sync.WaitGroup)
