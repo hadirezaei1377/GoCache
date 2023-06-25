@@ -13,8 +13,6 @@ import (
 // test
 // review line by line in future
 
-// additional features for improving :
-// Cache size limit: add a maximum size for the cache and remove old items when the limit is reached.
 // This will ensure that the cache does not grow too large and consume excessive memory.
 // Custom expiry time: Allow users to set custom expiry times for individual keys instead of relying only on
 // the defaultExpiry.
@@ -40,24 +38,31 @@ func NewCache(ed time.Duration) *Cache {
 	}
 }
 
-func NewCacheWithJanitor(ed time.Duration) *Cache {
+func NewCacheWithJanitor(ed time.Duration, maxItems int) *Cache {
 	c := &Cache{
 		mu:            &sync.RWMutex{},
 		items:         make(map[string]*item),
 		defaultExpiry: ed,
 	}
 
-	go c.janitor()
+	go c.janitor(maxItems)
 
 	return c
 }
 
-func (c *Cache) Set(k, v string) {
+func (c *Cache) Set(k, v string, maxItems int) {
 	if atomic.LoadInt32(&c.readOnly) == 1 {
 		return
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Check if the number of items in the cache exceeds the maximum limit.
+	if len(c.items) >= maxItems {
+		c.cleanup()
+	}
+
 	c.items[k] = &item{
 		val:    v,
 		expiry: time.Now().Add(time.Duration(c.defaultExpiry)).UnixNano(),
@@ -124,7 +129,7 @@ func (c *Cache) cleanup() {
 	}
 }
 
-func (c *Cache) janitor() {
+func (c *Cache) janitor(maxItems int) {
 	for {
 		<-time.After(c.defaultExpiry * 2)
 		c.cleanup()
@@ -132,11 +137,12 @@ func (c *Cache) janitor() {
 }
 
 func main() {
-	c := NewCacheWithJanitor(time.Millisecond * 20)
+	maxItems := 10000 // Set the maximum number of items
+	c := NewCacheWithJanitor(time.Millisecond*20, maxItems)
 	start := time.Now()
 	ch := make(chan bool)
 	fmt.Println("Start writing to the cache")
-	go writeRand(c, ch)
+	go writeRand(c, ch, maxItems)
 	<-time.After(time.Millisecond)
 	fmt.Println("Start reading from the cache")
 	go readRand(c, ch)
@@ -149,19 +155,20 @@ func main() {
 
 }
 
-func writeRand(c *Cache, ch chan<- bool) {
+func writeRand(c *Cache, ch chan<- bool, maxItems int) {
 	wg := new(sync.WaitGroup)
 	seed := rand.NewSource(time.Now().UnixNano())
 	rnd := rand.New(seed)
 	mu := &sync.RWMutex{}
 	n := 1000 * 1000
+
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func() {
 			mu.RLock()
 			r := fmt.Sprintf("%d", rnd.Intn(20*1000))
 			mu.RUnlock()
-			c.Set(r, r)
+			c.Set(r, r, maxItems)
 			wg.Done()
 		}()
 	}
