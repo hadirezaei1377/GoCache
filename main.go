@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -9,14 +12,11 @@ import (
 )
 
 // todo :
-// add new features
 // test
 // review line by line in future
 
-// Compression: Introducing compression techniques can be helpful for reducing the amount of memory consumed by the cache.
-
 type item struct {
-	val    string
+	val    []byte
 	expiry int64
 }
 
@@ -60,8 +60,19 @@ func (c *Cache) Set(k, v string, maxItems int, expiry time.Duration) {
 		c.cleanup()
 	}
 
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, err := gz.Write([]byte(v))
+	if err != nil {
+		return
+	}
+	err = gz.Close()
+	if err != nil {
+		return
+	}
+
 	c.items[k] = &item{
-		val:    v,
+		val:    buf.Bytes(),
 		expiry: time.Now().Add(expiry).UnixNano(),
 	}
 }
@@ -80,7 +91,7 @@ func (c *Cache) GetOrDelete(k string) (string, bool) {
 	}
 
 	c.mu.RUnlock()
-	return v.val, true
+	return string(v.val), true
 }
 
 func (c *Cache) Get(k string) (string, bool) {
@@ -95,7 +106,19 @@ func (c *Cache) Get(k string) (string, bool) {
 		return "", false
 	}
 
-	return v.val, true
+	buf := bytes.NewBuffer(v.val)
+	gz, err := gzip.NewReader(buf)
+	if err != nil {
+		return "", false
+	}
+	defer gz.Close()
+
+	uncompressed, err := io.ReadAll(gz)
+	if err != nil {
+		return "", false
+	}
+
+	return string(uncompressed), true
 }
 
 func (c *Cache) delete(k string) {
